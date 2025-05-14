@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Sistema de Registro de Ponto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-100 p-6">
+
+  <!-- Seção de Autenticação -->
+  <section id="auth-section" class="max-w-md mx-auto">
+    <h1 class="text-2xl font-bold text-center mb-4">Entrar</h1>
+    <select id="username" class="w-full mb-2 p-2 border rounded">
+      <option value="" disabled selected>Selecione seu usuário</option>
+    </select>
+    <input type="password" id="password" placeholder="Senha" class="w-full mb-2 p-2 border rounded" />
+    <button id="login-btn" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+      <span id="login-text">Entrar</span>
+      <span id="login-spinner" class="hidden animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full ml-2"></span>
+    </button>
+
+    <p class="text-center mt-4">Ou <button id="show-register" class="text-blue-600 underline">criar uma conta</button></p>
+  </section>
+
+  <!-- Seção de Cadastro -->
+  <section id="register-section" class="max-w-md mx-auto hidden">
+    <h1 class="text-2xl font-bold text-center mb-4">Cadastrar Novo Usuário</h1>
+    <input type="text" id="new-username" placeholder="Usuário" class="w-full mb-2 p-2 border rounded" />
+    <p id="username-error" class="text-red-500 text-sm hidden">Usuário já existe</p>
+    <input type="password" id="new-password" placeholder="Senha" class="w-full mb-2 p-2 border rounded" />
+    <input type="password" id="confirm-password" placeholder="Confirmar Senha" class="w-full mb-2 p-2 border rounded" />
+    <p id="password-error" class="text-red-500 text-sm hidden">As senhas não coincidem</p>
+    <button id="register-btn" class="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600">Registrar</button>
+    <p class="text-center mt-4">Já tem conta? <button id="show-login" class="text-blue-600 underline">Entrar</button></p>
+  </section>
+
+  <!-- Seção Principal (Dashboard) -->
+  <section id="dashboard-section" class="max-w-4xl mx-auto hidden">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-xl font-bold" id="welcome-message"></h2>
+      <button id="logout-btn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Sair</button>
+    </div>
+    <div class="mb-4">
+      <button id="register-entry-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Registrar Entrada</button>
+      <p id="last-entry" class="mt-2 text-gray-600"></p>
+    </div>
+    <div class="bg-white rounded shadow p-4">
+      <h3 class="text-lg font-bold mb-2">Histórico de Entradas</h3>
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead>
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hora</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuário</th>
+          </tr>
+        </thead>
+        <tbody id="entries-table" class="bg-white divide-y divide-gray-200"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <script>
+    const supabase = supabase.createClient(
+      'https://zmdyclyqefzfdhvbykvo.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp... (use a chave completa aqui)'
+    );
+
+    const authSection = document.getElementById('auth-section');
+    const registerSection = document.getElementById('register-section');
+    const dashboardSection = document.getElementById('dashboard-section');
+
+    const usernameSelect = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const loginBtn = document.getElementById('login-btn');
+    const loginSpinner = document.getElementById('login-spinner');
+    const loginText = document.getElementById('login-text');
+
+    const newUsernameInput = document.getElementById('new-username');
+    const newPasswordInput = document.getElementById('new-password');
+    const confirmPasswordInput = document.getElementById('confirm-password');
+    const usernameError = document.getElementById('username-error');
+    const passwordError = document.getElementById('password-error');
+    const registerBtn = document.getElementById('register-btn');
+
+    const showRegisterBtn = document.getElementById('show-register');
+    const showLoginBtn = document.getElementById('show-login');
+    const welcomeMessage = document.getElementById('welcome-message');
+    const logoutBtn = document.getElementById('logout-btn');
+    const registerEntryBtn = document.getElementById('register-entry-btn');
+    const lastEntry = document.getElementById('last-entry');
+    const entriesTable = document.getElementById('entries-table');
+
+    async function loadUsers() {
+      const { data, error } = await supabase.from('users').select('username');
+      if (error) return console.error(error);
+      usernameSelect.innerHTML = '<option value="" disabled selected>Selecione seu usuário</option>';
+      data.forEach(user => {
+        const option = document.createElement('option');
+        option.value = user.username;
+        option.textContent = user.username;
+        usernameSelect.appendChild(option);
+      });
+    }
+
+    loginBtn.addEventListener('click', async () => {
+      const username = usernameSelect.value;
+      const password = passwordInput.value;
+
+      loginSpinner.classList.remove('hidden');
+      loginText.textContent = "Entrando...";
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password);
+
+      loginSpinner.classList.add('hidden');
+      loginText.textContent = "Entrar";
+
+      if (data.length === 0) return alert('Usuário ou senha inválidos!');
+
+      localStorage.setItem('loggedUser', username);
+      welcomeMessage.textContent = `Monitor ${username}`;
+      authSection.classList.add('hidden');
+      dashboardSection.classList.remove('hidden');
+      loadEntries();
+    });
+
+    registerBtn.addEventListener('click', async () => {
+      const username = newUsernameInput.value.trim();
+      const password = newPasswordInput.value;
+      const confirmPassword = confirmPasswordInput.value;
+
+      usernameError.classList.add('hidden');
+      passwordError.classList.add('hidden');
+
+      if (password !== confirmPassword) return passwordError.classList.remove('hidden');
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('username')
+        .eq('username', username);
+
+      if (data.length > 0) return usernameError.classList.remove('hidden');
+
+      await supabase.from('users').insert({ username, password });
+
+      alert('Usuário criado com sucesso!');
+      showLoginBtn.click();
+      loadUsers();
+    });
+
+    showRegisterBtn.addEventListener('click', () => {
+      authSection.classList.add('hidden');
+      registerSection.classList.remove('hidden');
+    });
+
+    showLoginBtn.addEventListener('click', () => {
+      registerSection.classList.add('hidden');
+      authSection.classList.remove('hidden');
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('loggedUser');
+      dashboardSection.classList.add('hidden');
+      authSection.classList.remove('hidden');
+    });
+
+    registerEntryBtn.addEventListener('click', async () => {
+      const username = localStorage.getItem('loggedUser');
+      const now = new Date();
+      const date = now.toISOString().split('T')[0];
+      const time = now.toTimeString().split(' ')[0].slice(0, 5);
+
+      await supabase.from('entries').insert({ username, date, time });
+      lastEntry.textContent = `Última entrada registrada em ${date} às ${time}`;
+      loadEntries();
+    });
+
+    async function loadEntries() {
+      const { data, error } = await supabase
+        .from('entries')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      entriesTable.innerHTML = '';
+      data.forEach(entry => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="px-6 py-4 whitespace-nowrap">${entry.date}</td>
+          <td class="px-6 py-4 whitespace-nowrap">${entry.time}</td>
+          <td class="px-6 py-4 whitespace-nowrap">${entry.username}</td>
+        `;
+        entriesTable.appendChild(row);
+      });
+    }
+
+    // Inicialização
+    window.addEventListener('DOMContentLoaded', () => {
+      const user = localStorage.getItem('loggedUser');
+      if (user) {
+        welcomeMessage.textContent = `Monitor ${user}`;
+        authSection.classList.add('hidden');
+        dashboardSection.classList.remove('hidden');
+        loadEntries();
+      } else {
+        loadUsers();
+      }
+    });
+  </script>
+
+</body>
+</html>
